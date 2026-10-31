@@ -1,0 +1,514 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>MMA Cage Combat Engine</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; touch-action: none; user-select: none; }
+        body { background: #02060d; overflow: hidden; font-family: 'Courier New', monospace; color: #00f0ff; }
+        canvas { display: block; width: 100vw; height: 100vh; }
+        
+        /* Top UI Overlays */
+        #ui-container {
+            position: absolute; top: 0; left: 0; width: 100%; pointer-events: none; padding: 16px;
+            display: flex; flex-direction: column; gap: 8px; z-index: 10;
+        }
+        .header-row { display: flex; justify-content: space-between; font-size: 11px; letter-spacing: 1px; font-weight: bold; }
+        .hud-row { display: flex; justify-content: space-between; align-items: center; }
+        .fighter-hud { width: 45%; }
+        .bars { height: 12px; background: rgba(255,255,255,0.1); border: 1px solid rgba(0,240,255,0.3); position: relative; overflow: hidden; }
+        .fill { height: 100%; width: 100%; transition: width 0.1s ease; }
+        .player-fill { background: linear-gradient(90deg, #00f0ff, #0088cc); }
+        .enemy-fill { background: linear-gradient(90deg, #ff0055, #990033); }
+        .telemetry-tag { font-size: 10px; color: #52637a; margin-top: 4px; }
+        
+        #wave-box {
+            border: 1px solid #00f0ff; background: rgba(0, 240, 255, 0.05);
+            padding: 4px 8px; font-size: 12px; text-align: center; line-height: 1.2;
+        }
+
+        /* Screen overlays */
+        #overlay {
+            position: absolute; inset: 0; background: rgba(2, 6, 13, 0.85);
+            display: flex; flex-direction: column; justify-content: center; align-items: center;
+            z-index: 20; backdrop-filter: blur(4px);
+        }
+        .hud-btn {
+            background: rgba(0, 240, 255, 0.1); border: 2px solid #00f0ff;
+            color: #00f0ff; padding: 14px 28px; font-size: 16px; font-weight: bold;
+            letter-spacing: 3px; font-family: inherit; cursor: pointer; margin-top: 20px;
+            box-shadow: 0 0 15px rgba(0, 240, 255, 0.4);
+        }
+        .hud-btn:active { background: #00f0ff; color: #02060d; }
+
+        /* Mobile Touch Controls Overlay */
+        #controls-container {
+            position: absolute; bottom: 0; left: 0; width: 100%; padding: 16px;
+            display: flex; justify-content: space-between; align-items: flex-end; z-index: 10;
+        }
+        .control-group { display: flex; gap: 8px; }
+        .btn-ctrl {
+            width: 56px; height: 56px; border-radius: 8px; border: 1px solid rgba(0, 240, 255, 0.4);
+            background: rgba(0, 240, 255, 0.08); color: #00f0ff; font-family: inherit; font-size: 12px;
+            font-weight: bold; display: flex; flex-direction: column; justify-content: center; align-items: center;
+            cursor: pointer; pointer-events: auto;
+        }
+        .btn-ctrl:active { background: #00f0ff; color: #02060d; }
+        .debug-toggle-btn {
+            position: absolute; top: 110px; left: 16px; pointer-events: auto;
+            border: 1px dashed #00f0ff; background: rgba(0,240,255,0.05); color: #00f0ff;
+            padding: 4px 8px; font-size: 9px; cursor: pointer; z-index: 10;
+        }
+    </style>
+</head>
+<body>
+    <div id="ui-container">
+        <div class="header-row">
+            <div>MARK VII // SYS.ONLINE</div>
+            <div>SYS STBY</div>
+        </div>
+        <div class="hud-row">
+            <div class="fighter-hud">
+                <div>CORE HP: <span id="playerHpText">100</span>%</div>
+                <div class="bars"><div id="playerHpBar" class="fill player-fill"></div></div>
+                <div class="telemetry-tag">CHAMPION</div>
+            </div>
+            <div id="wave-box">WAVE<br><span style="font-size: 18px; font-weight: bold;">03</span></div>
+            <div class="fighter-hud" style="text-align: right;">
+                <div>OPPONENT HP: <span id="enemyHpText">100</span>%</div>
+                <div class="bars"><div id="enemyHpBar" class="fill enemy-fill"></div></div>
+                <div class="telemetry-tag">CHALLENGER</div>
+            </div>
+        </div>
+    </div>
+
+    <button id="debugToggle" class="debug-toggle-btn">DEBUG: OFF</button>
+
+    <div id="controls-container">
+        <div class="control-group">
+            <button id="btnLeft" class="btn-ctrl">◀<br>L</button>
+            <button id="btnRight" class="btn-ctrl">▶<br>R</button>
+        </div>
+        <div class="control-group" style="flex-direction: column; gap: 6px;">
+            <div class="control-group">
+                <button id="btnGuardHigh" class="btn-ctrl" style="border-color:#e2e8f0;">G-HI<br>↑</button>
+                <button id="btnGuardLow" class="btn-ctrl" style="border-color:#64748b;">G-LO<br>↓</button>
+            </div>
+            <div class="control-group">
+                <button id="btnPunch" class="btn-ctrl">PUNCH<br>(J)</button>
+                <button id="btnKick" class="btn-ctrl">KICK<br>(K)</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="overlay">
+        <h1 style="letter-spacing: 4px; margin-bottom: 8px;">CAGE FIGHTER</h1>
+        <p style="color: #64748b; font-size: 13px; margin-bottom: 20px;">OCTAGON HIGH-LOW GUARD PROTOTYPE</p>
+        <button id="startBtn" class="hud-btn">INITIALIZE COMBAT</button>
+    </div>
+
+    <canvas id="gameCanvas"></canvas>
+
+    <script>
+    // --- COMBAT ENGINE GLOBAL SPEC CONFIGURATION ---
+    const CONFIG = {
+        PLAYER_SPEED: 4,
+        AI_SPEED: 2.2,
+        PUNCH_RANGE: 75,
+        KICK_RANGE: 90,
+        BASE_DAMAGE: 15,
+        CHIP_DAMAGE_MULT: 0.15,
+        OCTAGON_PADDING: 120,
+        KNOCKBACK: 20
+    };
+
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+    const overlay = document.getElementById('overlay');
+    const startBtn = document.getElementById('startBtn');
+    const debugToggle = document.getElementById('debugToggle');
+
+    const playerHpText = document.getElementById('playerHpText');
+    const playerHpBar = document.getElementById('playerHpBar');
+    const enemyHpText = document.getElementById('enemyHpText');
+    const enemyHpBar = document.getElementById('enemyHpBar');
+
+    let W, H;
+    let running = false;
+    let showDebug = false;
+    let shakeTimer = 0;
+
+    let fighters = [];
+    let particles = [];
+    let flyTexts = [];
+
+    // Synthesized Audio engine (Web Audio API)
+    const SoundFx = {
+        ctx: null,
+        init() { if (!this.ctx) this.ctx = new (window.AudioContext || window.webkitAudioContext)(); },
+        playPunch() {
+            if (!this.ctx) return;
+            const o = this.ctx.createOscillator(), g = this.ctx.createGain();
+            o.type = 'triangle'; o.frequency.setValueAtTime(150, this.ctx.currentTime);
+            o.frequency.exponentialRampToValueAtTime(10, this.ctx.currentTime + 0.1);
+            g.gain.setValueAtTime(0.5, this.ctx.currentTime); g.gain.linearRampToValueAtTime(0.01, this.ctx.currentTime + 0.12);
+            o.connect(g); g.connect(this.ctx.destination); o.start(); o.stop(this.ctx.currentTime + 0.12);
+        },
+        playKick() {
+            if (!this.ctx) return;
+            const o = this.ctx.createOscillator(), g = this.ctx.createGain();
+            o.type = 'sawtooth'; o.frequency.setValueAtTime(200, this.ctx.currentTime);
+            o.frequency.exponentialRampToValueAtTime(40, this.ctx.currentTime + 0.18);
+            g.gain.setValueAtTime(0.4, this.ctx.currentTime); g.gain.linearRampToValueAtTime(0.01, this.ctx.currentTime + 0.2);
+            o.connect(g); g.connect(this.ctx.destination); o.start(); o.stop(this.ctx.currentTime + 0.2);
+        },
+        playBlock() {
+            if (!this.ctx) return;
+            const o = this.ctx.createOscillator(), g = this.ctx.createGain();
+            o.type = 'sine'; o.frequency.setValueAtTime(350, this.ctx.currentTime);
+            o.frequency.linearRampToValueAtTime(280, this.ctx.currentTime + 0.08);
+            g.gain.setValueAtTime(0.3, this.ctx.currentTime); g.gain.linearRampToValueAtTime(0.01, this.ctx.currentTime + 0.08);
+            o.connect(g); g.connect(this.ctx.destination); o.start(); o.stop(this.ctx.currentTime + 0.08);
+        }
+    };
+
+    function resize() {
+        W = canvas.width = window.innerWidth;
+        H = canvas.height = window.innerHeight;
+    }
+    window.addEventListener('resize', resize);
+    resize();
+
+    // Key states and mobile touch interface trackers
+    const keys = { Left: false, Right: false, GuardHigh: false, GuardLow: false };
+    const mobileControls = { Left: false, Right: false, GuardHigh: false, GuardLow: false };
+
+    // Support keyboard handlers
+    window.addEventListener('keydown', e => {
+        if (e.code === 'KeyA') keys.Left = true;
+        if (e.code === 'KeyD') keys.Right = true;
+        if (e.code === 'ArrowUp') { keys.GuardHigh = true; keys.GuardLow = false; }
+        if (e.code === 'ArrowDown') { keys.GuardLow = true; keys.GuardHigh = false; }
+        if (e.code === 'KeyJ') fireAttack(fighters[0], 'Punch');
+        if (e.code === 'KeyK') fireAttack(fighters[0], 'Kick');
+    });
+    window.addEventListener('keyup', e => {
+        if (e.code === 'KeyA') keys.Left = false;
+        if (e.code === 'KeyD') keys.Right = false;
+        if (e.code === 'ArrowUp') keys.GuardHigh = false;
+        if (e.code === 'ArrowDown') keys.GuardLow = false;
+    });
+
+    // Touch setup support for buttons (iOS and Android-proof)
+    function setupMobileBtn(id, stateProp) {
+        const btn = document.getElementById(id);
+        const setOn = (e) => { e.preventDefault(); mobileControls[stateProp] = true; };
+        const setOff = (e) => { e.preventDefault(); mobileControls[stateProp] = false; };
+        btn.addEventListener('touchstart', setOn);
+        btn.addEventListener('touchend', setOff);
+        btn.addEventListener('mousedown', setOn);
+        btn.addEventListener('mouseup', setOff);
+    }
+    setupMobileBtn('btnLeft', 'Left');
+    setupMobileBtn('btnRight', 'Right');
+    setupMobileBtn('btnGuardHigh', 'GuardHigh');
+    setupMobileBtn('btnGuardLow', 'GuardLow');
+
+    document.getElementById('btnPunch').addEventListener('pointerdown', () => fireAttack(fighters[0], 'Punch'));
+    document.getElementById('btnKick').addEventListener('pointerdown', () => fireAttack(fighters[0], 'Kick'));
+
+    debugToggle.addEventListener('click', () => {
+        showDebug = !showDebug;
+        debugToggle.innerText = `DEBUG: ${showDebug ? 'ON' : 'OFF'}`;
+        debugToggle.style.borderStyle = showDebug ? 'solid' : 'dashed';
+    });
+
+    // Fighter Factory Pattern
+    function createFighter(x, color, isPlayer) {
+        return {
+            x, y: H - 180, w: 60, h: 140, color, isPlayer,
+            hp: 100, isLeft: isPlayer,
+            actionState: 'idle', stateTimer: 0,
+            isBlockingHigh: false, isBlockingLow: false,
+            velX: 0, score: 0,
+            trail: []
+        };
+    }
+
+    function spawnParticle(x, y, color) {
+        for (let i = 0; i < 15; i++) {
+            particles.push({
+                x, y,
+                vx: (Math.random() - 0.5) * 8, vy: (Math.random() - 0.5) * 8 - 2,
+                alpha: 1.0, size: Math.random() * 3 + 1.5, color
+            });
+        }
+    }
+
+    function spawnText(x, y, str, color) {
+        flyTexts.push({ x, y, str, color, alpha: 1.0, vy: -1.5 });
+    }
+
+    function fireAttack(attacker, attackType) {
+        if (!running || attacker.actionState !== 'idle') return;
+        attacker.actionState = attackType;
+        attacker.stateTimer = attackType === 'Punch' ? 12 : 18;
+
+        const range = attackType === 'Punch' ? CONFIG.PUNCH_RANGE : CONFIG.KICK_RANGE;
+        const target = fighters.find(f => f !== attacker);
+        const distance = Math.abs(attacker.x - target.x);
+
+        if (distance <= range) {
+            // Evaluates targeted hit zones against defender guard states
+            let result = 'CLEAN';
+            let targetZoneY = target.y + target.h * 0.5; // Torso
+            let zoneLabel = 'Torso (Mid)';
+
+            if (attackType === 'Punch') {
+                targetZoneY = target.y + target.h * 0.15; // Head
+                zoneLabel = 'Head (High)';
+                if (target.isBlockingHigh) result = 'BLOCKED';
+            } else if (attackType === 'Kick') {
+                targetZoneY = target.y + target.h * 0.85; // Leg
+                zoneLabel = 'Leg (Low)';
+                if (target.isBlockingLow) result = 'BLOCKED';
+            }
+
+            const hitX = (attacker.x + target.x) / 2;
+
+            if (result === 'BLOCKED') {
+                SoundFx.playBlock();
+                target.hp -= CONFIG.BASE_DAMAGE * CONFIG.CHIP_DAMAGE_MULT;
+                spawnParticle(hitX, targetZoneY, '#a1a1aa');
+                spawnText(hitX, targetZoneY - 30, 'BLOCKED', '#e2e8f0');
+            } else {
+                if (attackType === 'Punch') SoundFx.playPunch(); else SoundFx.playKick();
+                target.hp = Math.max(0, target.hp - CONFIG.BASE_DAMAGE);
+                target.x += attacker.isLeft ? CONFIG.KNOCKBACK : -CONFIG.KNOCKBACK;
+                shakeTimer = 8;
+                spawnParticle(hitX, targetZoneY, attacker.color);
+                spawnText(hitX, targetZoneY - 30, `${attackType === 'Punch' ? 'PUNCH' : 'SWEEP'} HIT!`, attacker.color);
+                spawnText(hitX, targetZoneY - 5, `+50 PTS`, '#ffffff');
+            }
+
+            // Sync visual states immediately
+            playerHpBar.style.width = fighters[0].hp + '%';
+            playerHpText.innerText = Math.round(fighters[0].hp);
+            enemyHpBar.style.width = fighters[1].hp + '%';
+            enemyHpText.innerText = Math.round(fighters[1].hp);
+
+            if (fighters[0].hp <= 0 || fighters[1].hp <= 0) endGame();
+        }
+    }
+
+    function update() {
+        if (!running) return;
+
+        // Visual position boundary clamps
+        const leftLimit = CONFIG.OCTAGON_PADDING;
+        const rightLimit = W - CONFIG.OCTAGON_PADDING;
+
+        fighters.forEach((f, index) => {
+            f.y = H - 240;
+
+            // Generate neon motion trails
+            f.trail.push({ x: f.x, y: f.y, alpha: 0.25 });
+            if (f.trail.length > 5) f.trail.shift();
+
+            if (f.stateTimer > 0) {
+                f.stateTimer--;
+                if (f.stateTimer <= 0) f.actionState = 'idle';
+            }
+
+            if (f.isPlayer) {
+                // Merge inputs
+                const mvL = keys.Left || mobileControls.Left;
+                const mvR = keys.Right || mobileControls.Right;
+                f.isBlockingHigh = keys.GuardHigh || mobileControls.GuardHigh;
+                f.isBlockingLow = keys.GuardLow || mobileControls.GuardLow;
+
+                f.velX = 0;
+                if (mvL) f.velX = -CONFIG.PLAYER_SPEED;
+                if (mvR) f.velX = CONFIG.PLAYER_SPEED;
+
+                if (f.actionState !== 'idle') f.velX = 0; // lock motion during attack window
+                f.x = Math.max(leftLimit, Math.min(rightLimit, f.x + f.velX));
+            } else {
+                // Adaptive AI Behavior Module
+                const target = fighters[0];
+                const dist = f.x - target.x; // Target-chase separation
+
+                f.isBlockingHigh = false;
+                f.isBlockingLow = false;
+
+                if (f.actionState === 'idle') {
+                    if (Math.abs(dist) > 80) {
+                        f.x += dist > 0 ? -CONFIG.AI_SPEED : CONFIG.AI_SPEED;
+                    } else {
+                        // In proximity, randomly cycle high/low guards vs aggressive counters
+                        const r = Math.random();
+                        if (r < 0.015) fireAttack(f, 'Punch');
+                        else if (r < 0.03) fireAttack(f, 'Kick');
+                        else if (r < 0.05) f.isBlockingHigh = true;
+                        else if (r < 0.07) f.isBlockingLow = true;
+                    }
+                }
+                f.x = Math.max(leftLimit, Math.min(rightLimit, f.x));
+            }
+        });
+
+        // Ensure fighters always face one another
+        fighters[0].isLeft = fighters[0].x < fighters[1].x;
+        fighters[1].isLeft = fighters[1].x < fighters[0].x;
+
+        // Particle dynamics and flyText updates
+        for (let i = particles.length - 1; i >= 0; i--) {
+            const p = particles[i];
+            p.x += p.vx; p.y += p.vy; p.alpha -= 0.035;
+            if (p.alpha <= 0) particles.splice(i, 1);
+        }
+        for (let i = flyTexts.length - 1; i >= 0; i--) {
+            const t = flyTexts[i];
+            t.y += t.vy; t.alpha -= 0.015;
+            if (t.alpha <= 0) flyTexts.splice(i, 1);
+        }
+    }
+
+    function draw() {
+        ctx.save();
+        if (shakeTimer > 0) {
+            ctx.translate((Math.random() - 0.5) * 8, (Math.random() - 0.5) * 8);
+            shakeTimer--;
+        }
+
+        // Draw visual Octagon Cage and Backdrop mesh
+        ctx.fillStyle = '#02060d';
+        ctx.fillRect(0, 0, W, H);
+
+        ctx.strokeStyle = '#1e293b';
+        ctx.lineWidth = 1.5;
+        for (let x = 0; x < W; x += 40) {
+            ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, H); ctx.stroke();
+        }
+        for (let y = 0; y < H; y += 40) {
+            ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke();
+        }
+
+        // Cage border borders
+        ctx.strokeStyle = 'rgba(0, 240, 255, 0.15)';
+        ctx.lineWidth = 6;
+        ctx.strokeRect(CONFIG.OCTAGON_PADDING, 50, W - CONFIG.OCTAGON_PADDING * 2, H - 240);
+
+        // Draw visual interactive fighters
+        fighters.forEach(f => {
+            // Neon trail drawing
+            f.trail.forEach(t => {
+                ctx.strokeStyle = f.color;
+                ctx.globalAlpha = t.alpha;
+                ctx.lineWidth = 2;
+                ctx.strokeRect(t.x - f.w / 2, t.y, f.w, f.h);
+            });
+            ctx.globalAlpha = 1.0;
+
+            // Simple, sleek Neon Figure silhouette 
+            ctx.shadowColor = f.color;
+            ctx.shadowBlur = 15;
+            ctx.strokeStyle = f.color;
+            ctx.lineWidth = 4;
+            ctx.fillStyle = '#02060d';
+
+            // Head, Torso and limb outlines
+            const fx = f.x - f.w/2;
+            ctx.strokeRect(fx, f.y, f.w, f.h);
+            ctx.fillRect(fx, f.y, f.w, f.h);
+
+            // Draw defensive hand stances / shields
+            if (f.isBlockingHigh) {
+                ctx.fillStyle = '#ffffff';
+                ctx.beginPath();
+                ctx.arc(f.x + (f.isLeft ? 15 : -15), f.y + 20, 8, 0, Math.PI*2);
+                ctx.fill();
+            }
+            if (f.isBlockingLow) {
+                ctx.fillStyle = '#ffffff';
+                ctx.beginPath();
+                ctx.arc(f.x + (f.isLeft ? 15 : -15), f.y + 80, 8, 0, Math.PI*2);
+                ctx.fill();
+            }
+
+            ctx.shadowBlur = 0;
+
+            // Optional: Draw developer-facing active Hitbox validation
+            if (showDebug) {
+                ctx.font = '10px Courier New';
+                ctx.lineWidth = 1;
+
+                // High (Head)
+                ctx.strokeStyle = '#ef4444';
+                ctx.strokeRect(fx - 4, f.y, f.w + 8, f.h * 0.3);
+                ctx.fillStyle = '#ef4444';
+                ctx.fillText('Head (High)', fx + f.w + 6, f.y + 20);
+
+                // Mid (Torso)
+                ctx.strokeStyle = '#f97316';
+                ctx.strokeRect(fx - 4, f.y + f.h * 0.3, f.w + 8, f.h * 0.4);
+                ctx.fillStyle = '#f97316';
+                ctx.fillText('Torso (Mid)', fx + f.w + 6, f.y + 65);
+
+                // Low (Leg)
+                ctx.strokeStyle = '#f59e0b';
+                ctx.strokeRect(fx - 4, f.y + f.h * 0.7, f.w + 8, f.h * 0.3);
+                ctx.fillStyle = '#f59e0b';
+                ctx.fillText('Leg (Low)', fx + f.w + 6, f.y + 115);
+            }
+        });
+
+        // Draw flying particle systems
+        for (const p of particles) {
+            ctx.fillStyle = p.color;
+            ctx.globalAlpha = p.alpha;
+            ctx.beginPath(); ctx.arc(p.x, p.y, p.size, 0, Math.PI*2); ctx.fill();
+        }
+        ctx.globalAlpha = 1.0;
+
+        // Render damage & score update floating text
+        for (const t of flyTexts) {
+            ctx.fillStyle = t.color;
+            ctx.font = 'bold 16px Courier New';
+            ctx.fillText(t.str, t.x - 30, t.y);
+        }
+
+        ctx.restore();
+
+        update();
+        requestAnimationFrame(draw);
+    }
+
+    function startGame() {
+        SoundFx.init();
+        overlay.style.display = 'none';
+        fighters = [
+            createFighter(W * 0.3, '#00f0ff', true),
+            createFighter(W * 0.7, '#ff0055', false)
+        ];
+        playerHpBar.style.width = '100%';
+        enemyHpBar.style.width = '100%';
+        playerHpText.innerText = '100';
+        enemyHpText.innerText = '100';
+        running = true;
+    }
+
+    function endGame() {
+        running = false;
+        overlay.style.display = 'flex';
+        overlay.querySelector('h1').innerText = fighters[0].hp <= 0 ? 'KNOCKOUT' : 'VICTORY';
+        overlay.querySelector('p').innerText = fighters[0].hp <= 0 ? 'TRY RE-INITIALIZING COMBAT' : 'CORE INTACT. CHALLENGER DEFEATED.';
+        startBtn.innerText = 'REINITIALIZE COMBAT';
+    }
+
+    startBtn.addEventListener('click', startGame);
+    requestAnimationFrame(draw);
+    </script>
+</body>
+</html>
