@@ -3,169 +3,178 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>MMA Cage Combat Engine</title>
+    <title>MMA 2D Combat Engine Skeleton</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; touch-action: none; user-select: none; }
-        body { background: #030712; overflow: hidden; font-family: 'Courier New', monospace; color: #00f0ff; }
+        body { background: #04080e; overflow: hidden; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, monospace; color: #38bdf8; }
         canvas { display: block; width: 100vw; height: 100vh; }
         
-        #ui-container {
-            position: absolute; top: 0; left: 0; width: 100%; pointer-events: none; padding: 14px 16px;
+        #hud-container {
+            position: absolute; top: 0; left: 0; width: 100%; pointer-events: none; padding: 16px 20px;
             display: flex; flex-direction: column; gap: 8px; z-index: 10;
         }
-        .header-row { display: flex; justify-content: space-between; font-size: 11px; letter-spacing: 1px; font-weight: bold; }
-        .hud-row { display: flex; justify-content: space-between; align-items: center; }
-        .fighter-hud { width: 44%; }
-        .bars { height: 12px; background: rgba(255,255,255,0.08); border: 1px solid rgba(0,240,255,0.4); position: relative; overflow: hidden; border-radius: 2px; }
-        .fill { height: 100%; width: 100%; transition: width 0.1s linear; }
-        .player-fill { background: linear-gradient(90deg, #00f0ff, #0077b6); }
-        .enemy-fill { background: linear-gradient(90deg, #ff0055, #99002b); }
-        .telemetry-tag { font-size: 9px; color: #64748b; margin-top: 3px; }
-        
-        #wave-box {
-            border: 1px solid #00f0ff; background: rgba(0, 240, 255, 0.08);
-            padding: 3px 8px; font-size: 11px; text-align: center; border-radius: 4px;
+        .meta-bar {
+            display: flex; justify-content: space-between; font-size: 10px; font-weight: 700;
+            letter-spacing: 1.5px; color: #475569; text-transform: uppercase;
+        }
+        .hp-row { display: flex; justify-content: space-between; align-items: center; gap: 16px; margin-top: 4px; }
+        .fighter-meta { width: 42%; }
+        .fighter-label { font-size: 11px; font-weight: bold; margin-bottom: 4px; display: flex; justify-content: space-between; }
+        .bar-shell {
+            height: 10px; background: rgba(0, 0, 0, 0.4); border: 1px solid rgba(56, 189, 248, 0.3);
+            border-radius: 4px; overflow: hidden; position: relative;
+        }
+        .bar-fill { height: 100%; width: 100%; transition: width 0.15s ease-out; }
+        .p1-bar { background: linear-gradient(90deg, #0284c7, #38bdf8); }
+        .ai-bar { background: linear-gradient(90deg, #e11d48, #fb7185); }
+
+        #engine-badge {
+            font-size: 9px; background: rgba(15, 23, 42, 0.8); border: 1px solid rgba(56, 189, 248, 0.4);
+            color: #38bdf8; padding: 4px 8px; border-radius: 4px; font-weight: 600; text-align: center;
         }
 
-        #overlay {
-            position: absolute; inset: 0; background: rgba(3, 7, 18, 0.9);
-            display: flex; flex-direction: column; justify-content: center; align-items: center;
-            z-index: 20; backdrop-filter: blur(6px);
+        #diag-btn {
+            position: absolute; top: 88px; left: 20px; pointer-events: auto;
+            border: 1px solid #38bdf8; background: rgba(4, 8, 14, 0.85); color: #38bdf8;
+            padding: 6px 12px; font-size: 10px; font-weight: 700; letter-spacing: 1px;
+            cursor: pointer; z-index: 10; border-radius: 6px; backdrop-filter: blur(4px);
         }
-        .hud-btn {
-            background: rgba(0, 240, 255, 0.1); border: 2px solid #00f0ff;
-            color: #00f0ff; padding: 14px 28px; font-size: 15px; font-weight: bold;
-            letter-spacing: 2px; font-family: inherit; cursor: pointer; margin-top: 18px;
-            box-shadow: 0 0 20px rgba(0, 240, 255, 0.35); border-radius: 4px;
-        }
-        .hud-btn:active { background: #00f0ff; color: #030712; }
 
-        #controls-container {
-            position: absolute; bottom: 12px; left: 0; width: 100%; padding: 0 16px;
+        #controls {
+            position: absolute; bottom: 20px; left: 0; width: 100%; padding: 0 16px;
             display: flex; justify-content: space-between; align-items: flex-end; z-index: 10;
         }
-        .control-group { display: flex; gap: 8px; }
-        .btn-ctrl {
-            width: 58px; height: 58px; border-radius: 8px; border: 1px solid rgba(0, 240, 255, 0.4);
-            background: rgba(0, 240, 255, 0.06); color: #00f0ff; font-family: inherit; font-size: 11px;
-            font-weight: bold; display: flex; flex-direction: column; justify-content: center; align-items: center;
-            cursor: pointer; pointer-events: auto; backdrop-filter: blur(2px);
+        .touch-group { display: flex; gap: 10px; }
+        .btn-touch {
+            background: rgba(4, 8, 14, 0.7); border: 1.5px solid rgba(56, 189, 248, 0.35);
+            color: #f8fafc; font-weight: 700; border-radius: 12px; display: flex;
+            flex-direction: column; justify-content: center; align-items: center;
+            backdrop-filter: blur(8px); cursor: pointer; pointer-events: auto;
+            transition: all 0.05s ease;
         }
-        .btn-ctrl:active { background: #00f0ff; color: #030712; }
-        .debug-toggle-btn {
-            position: absolute; top: 96px; left: 16px; pointer-events: auto;
-            border: 1px dashed #00f0ff; background: rgba(0,240,255,0.06); color: #00f0ff;
-            padding: 4px 8px; font-size: 10px; cursor: pointer; z-index: 10; border-radius: 3px;
+        .btn-move { width: 56px; height: 56px; font-size: 16px; color: #38bdf8; }
+        .btn-action { width: 58px; height: 52px; font-size: 11px; letter-spacing: 0.5px; }
+        .btn-guard { width: 58px; height: 42px; font-size: 10px; border-color: rgba(148, 163, 184, 0.4); color: #94a3b8; }
+        .btn-touch:active { background: #38bdf8; color: #080c14; border-color: #38bdf8; transform: scale(0.96); }
+
+        #modal {
+            position: absolute; inset: 0; background: rgba(4, 8, 14, 0.94);
+            display: flex; flex-direction: column; justify-content: center; align-items: center;
+            z-index: 30; backdrop-filter: blur(6px); text-align: center; padding: 24px;
         }
+        .start-btn {
+            background: #0284c7; border: none; color: #fff; padding: 14px 28px;
+            font-size: 14px; font-weight: 700; letter-spacing: 1px; border-radius: 8px;
+            cursor: pointer; margin-top: 18px; box-shadow: 0 4px 18px rgba(2, 132, 199, 0.4);
+        }
+        .start-btn:active { background: #38bdf8; transform: scale(0.97); }
     </style>
 </head>
 <body>
-    <div id="ui-container">
-        <div class="header-row">
-            <div>MARK VII // SYS.ONLINE</div>
-            <div style="color:#ff0055;">SYS STBY</div>
+    <div id="hud-container">
+        <div class="meta-bar">
+            <span>MMA Engine Skeleton // Core Mode</span>
+            <span id="fps-counter">60 FPS</span>
         </div>
-        <div class="hud-row">
-            <div class="fighter-hud">
-                <div>CORE HP: <span id="playerHpText">100</span>%</div>
-                <div class="bars"><div id="playerHpBar" class="fill player-fill"></div></div>
-                <div class="telemetry-tag">CHAMPION</div>
+        <div class="hp-row">
+            <div class="fighter-meta">
+                <div class="fighter-label"><span>P1 CORE</span><span id="p1-num">100%</span></div>
+                <div class="bar-shell"><div id="p1-hp" class="bar-fill p1-bar"></div></div>
             </div>
-            <div id="wave-box">WAVE<br><span style="font-size: 16px; font-weight: bold;">03</span></div>
-            <div class="fighter-hud" style="text-align: right;">
-                <div>OPPONENT HP: <span id="enemyHpText">100</span>%</div>
-                <div class="bars"><div id="enemyHpBar" class="fill enemy-fill"></div></div>
-                <div class="telemetry-tag">CHALLENGER</div>
+            <div id="engine-badge">SKELETON<br>TEST RIG</div>
+            <div class="fighter-meta">
+                <div class="fighter-label"><span>AI RIG</span><span id="ai-num">100%</span></div>
+                <div class="bar-shell"><div id="ai-hp" class="bar-fill ai-bar"></div></div>
             </div>
         </div>
     </div>
 
-    <button id="debugToggle" class="debug-toggle-btn">DEBUG: OFF</button>
+    <button id="diag-btn">HITBOX RIG: ON</button>
 
-    <div id="controls-container">
-        <div class="control-group">
-            <button id="btnLeft" class="btn-ctrl">◀<br>L</button>
-            <button id="btnRight" class="btn-ctrl">▶<br>R</button>
+    <div id="controls">
+        <div class="touch-group">
+            <button id="btnL" class="btn-touch btn-move">◀</button>
+            <button id="btnR" class="btn-touch btn-move">▶</button>
         </div>
-        <div class="control-group" style="flex-direction: column; gap: 6px;">
-            <div class="control-group">
-                <button id="btnGuardHigh" class="btn-ctrl" style="border-color:#f8fafc;">G-HI<br>↑</button>
-                <button id="btnGuardLow" class="btn-ctrl" style="border-color:#64748b;">G-LO<br>↓</button>
+        <div style="display:flex; flex-direction:column; gap:8px;">
+            <div class="touch-group">
+                <button id="btnGHi" class="btn-touch btn-guard">GUARD HI</button>
+                <button id="btnGLo" class="btn-touch btn-guard">GUARD LO</button>
             </div>
-            <div class="control-group">
-                <button id="btnPunch" class="btn-ctrl">PUNCH<br>(J)</button>
-                <button id="btnKick" class="btn-ctrl">KICK<br>(K)</button>
+            <div class="touch-group">
+                <button id="btnP" class="btn-touch btn-action" style="color: #38bdf8;">PUNCH</button>
+                <button id="btnK" class="btn-touch btn-action" style="color: #38bdf8;">KICK</button>
             </div>
         </div>
     </div>
 
-    <div id="overlay">
-        <h1 style="letter-spacing: 3px; margin-bottom: 6px;">CAGE FIGHTER</h1>
-        <p style="color: #64748b; font-size: 12px; margin-bottom: 16px;">OCTAGON HIGH-LOW COMBAT ENGINE</p>
-        <button id="startBtn" class="hud-btn">INITIALIZE COMBAT</button>
+    <div id="modal">
+        <h2 style="letter-spacing: 2px; margin-bottom: 8px; color: #f8fafc;">OCTAGON 2D SKELETON</h2>
+        <p style="color: #94a3b8; font-size: 13px; max-width: 320px; line-height: 1.5;">
+            MMA Combat & Collision Physics Rig.<br>
+            Multi-zone hitboxes, responsive checks, and raw Web Audio synthesis.
+        </p>
+        <button id="init-btn" class="start-btn">RUN TEST HARNESS</button>
     </div>
 
-    <canvas id="gameCanvas"></canvas>
+    <canvas id="stage"></canvas>
 
     <script>
     const CONFIG = {
-        PLAYER_SPEED: 4,
-        AI_SPEED: 2.2,
-        PUNCH_RANGE: 85,
-        KICK_RANGE: 105,
-        BASE_DAMAGE: 14,
-        CHIP_DAMAGE_MULT: 0.15,
-        OCTAGON_PADDING: 50,
-        KNOCKBACK: 22
+        P1_SPEED: 3.2,
+        AI_SPEED: 1.6,
+        PUNCH_REACH: 90,
+        KICK_REACH: 110,
+        BASE_DAMAGE: 12,
+        CHIP_DAMAGE: 2,
+        KNOCKBACK: 20
     };
 
-    const canvas = document.getElementById('gameCanvas');
+    const canvas = document.getElementById('stage');
     const ctx = canvas.getContext('2d');
-    const overlay = document.getElementById('overlay');
-    const startBtn = document.getElementById('startBtn');
-    const debugToggle = document.getElementById('debugToggle');
+    const modal = document.getElementById('modal');
+    const initBtn = document.getElementById('init-btn');
+    const diagBtn = document.getElementById('diag-btn');
 
-    const playerHpText = document.getElementById('playerHpText');
-    const playerHpBar = document.getElementById('playerHpBar');
-    const enemyHpText = document.getElementById('enemyHpText');
-    const enemyHpBar = document.getElementById('enemyHpBar');
+    const p1HpBar = document.getElementById('p1-hp');
+    const p1HpNum = document.getElementById('p1-num');
+    const aiHpBar = document.getElementById('ai-hp');
+    const aiHpNum = document.getElementById('ai-num');
 
     let W, H;
     let running = false;
-    let showDebug = false;
+    let debugMode = true; 
+    let hitFreeze = 0;
     let shakeTimer = 0;
-    let hitStop = 0;
 
     let fighters = [];
     let particles = [];
-    let flyTexts = [];
+    let popups = [];
 
-    const SoundFx = {
+    const AudioEngine = {
         ctx: null,
         init() { if (!this.ctx) this.ctx = new (window.AudioContext || window.webkitAudioContext)(); },
-        playPunch() {
+        strike(isKick) {
             if (!this.ctx) return;
-            const o = this.ctx.createOscillator(), g = this.ctx.createGain();
-            o.type = 'triangle'; o.frequency.setValueAtTime(160, this.ctx.currentTime);
-            o.frequency.exponentialRampToValueAtTime(15, this.ctx.currentTime + 0.1);
-            g.gain.setValueAtTime(0.5, this.ctx.currentTime); g.gain.linearRampToValueAtTime(0.01, this.ctx.currentTime + 0.12);
-            o.connect(g); g.connect(this.ctx.destination); o.start(); o.stop(this.ctx.currentTime + 0.12);
+            const osc = this.ctx.createOscillator(), gain = this.ctx.createGain();
+            osc.type = isKick ? 'triangle' : 'sine';
+            osc.frequency.setValueAtTime(isKick ? 150 : 200, this.ctx.currentTime);
+            osc.frequency.exponentialRampToValueAtTime(30, this.ctx.currentTime + 0.15);
+            gain.gain.setValueAtTime(0.4, this.ctx.currentTime);
+            gain.gain.linearRampToValueAtTime(0.01, this.ctx.currentTime + 0.15);
+            osc.connect(gain); gain.connect(this.ctx.destination);
+            osc.start(); osc.stop(this.ctx.currentTime + 0.15);
         },
-        playKick() {
+        guard() {
             if (!this.ctx) return;
-            const o = this.ctx.createOscillator(), g = this.ctx.createGain();
-            o.type = 'sawtooth'; o.frequency.setValueAtTime(220, this.ctx.currentTime);
-            o.frequency.exponentialRampToValueAtTime(35, this.ctx.currentTime + 0.18);
-            g.gain.setValueAtTime(0.45, this.ctx.currentTime); g.gain.linearRampToValueAtTime(0.01, this.ctx.currentTime + 0.2);
-            o.connect(g); g.connect(this.ctx.destination); o.start(); o.stop(this.ctx.currentTime + 0.2);
-        },
-        playBlock() {
-            if (!this.ctx) return;
-            const o = this.ctx.createOscillator(), g = this.ctx.createGain();
-            o.type = 'sine'; o.frequency.setValueAtTime(380, this.ctx.currentTime);
-            o.frequency.linearRampToValueAtTime(300, this.ctx.currentTime + 0.08);
-            g.gain.setValueAtTime(0.3, this.ctx.currentTime); g.gain.linearRampToValueAtTime(0.01, this.ctx.currentTime + 0.08);
-            o.connect(g); g.connect(this.ctx.destination); o.start(); o.stop(this.ctx.currentTime + 0.08);
+            const osc = this.ctx.createOscillator(), gain = this.ctx.createGain();
+            osc.type = 'triangle';
+            osc.frequency.setValueAtTime(400, this.ctx.currentTime);
+            osc.frequency.linearRampToValueAtTime(260, this.ctx.currentTime + 0.08);
+            gain.gain.setValueAtTime(0.2, this.ctx.currentTime);
+            gain.gain.linearRampToValueAtTime(0.01, this.ctx.currentTime + 0.08);
+            osc.connect(gain); gain.connect(this.ctx.destination);
+            osc.start(); osc.stop(this.ctx.currentTime + 0.08);
         }
     };
 
@@ -176,248 +185,196 @@
     window.addEventListener('resize', resize);
     resize();
 
-    const keys = { Left: false, Right: false, GuardHigh: false, GuardLow: false };
-    const mobileControls = { Left: false, Right: false, GuardHigh: false, GuardLow: false };
+    const input = { left: false, right: false, guardHi: false, guardLo: false };
 
-    window.addEventListener('keydown', e => {
-        if (e.code === 'KeyA') keys.Left = true;
-        if (e.code === 'KeyD') keys.Right = true;
-        if (e.code === 'ArrowUp') { keys.GuardHigh = true; keys.GuardLow = false; }
-        if (e.code === 'ArrowDown') { keys.GuardLow = true; keys.GuardHigh = false; }
-        if (e.code === 'KeyJ') fireAttack(fighters[0], 'Punch');
-        if (e.code === 'KeyK') fireAttack(fighters[0], 'Kick');
-    });
-    window.addEventListener('keyup', e => {
-        if (e.code === 'KeyA') keys.Left = false;
-        if (e.code === 'KeyD') keys.Right = false;
-        if (e.code === 'ArrowUp') keys.GuardHigh = false;
-        if (e.code === 'ArrowDown') keys.GuardLow = false;
-    });
-
-    function setupMobileBtn(id, prop) {
-        const btn = document.getElementById(id);
-        const on = (e) => { e.preventDefault(); mobileControls[prop] = true; };
-        const off = (e) => { e.preventDefault(); mobileControls[prop] = false; };
-        btn.addEventListener('touchstart', on);
-        btn.addEventListener('touchend', off);
-        btn.addEventListener('mousedown', on);
-        btn.addEventListener('mouseup', off);
+    function bindTouch(id, key) {
+        const el = document.getElementById(id);
+        const set = (val) => (e) => { e.preventDefault(); input[key] = val; };
+        el.addEventListener('touchstart', set(true));
+        el.addEventListener('touchend', set(false));
+        el.addEventListener('mousedown', set(true));
+        el.addEventListener('mouseup', set(false));
     }
-    setupMobileBtn('btnLeft', 'Left');
-    setupMobileBtn('btnRight', 'Right');
-    setupMobileBtn('btnGuardHigh', 'GuardHigh');
-    setupMobileBtn('btnGuardLow', 'GuardLow');
+    bindTouch('btnL', 'left');
+    bindTouch('btnR', 'right');
+    bindTouch('btnGHi', 'guardHi');
+    bindTouch('btnGLo', 'guardLo');
 
-    document.getElementById('btnPunch').addEventListener('pointerdown', () => fireAttack(fighters[0], 'Punch'));
-    document.getElementById('btnKick').addEventListener('pointerdown', () => fireAttack(fighters[0], 'Kick'));
+    document.getElementById('btnP').addEventListener('pointerdown', () => triggerAttack(fighters[0], 'Punch'));
+    document.getElementById('btnK').addEventListener('pointerdown', () => triggerAttack(fighters[0], 'Kick'));
 
-    debugToggle.addEventListener('click', () => {
-        showDebug = !showDebug;
-        debugToggle.innerText = `DEBUG: ${showDebug ? 'ON' : 'OFF'}`;
-        debugToggle.style.borderStyle = showDebug ? 'solid' : 'dashed';
+    diagBtn.addEventListener('click', () => {
+        debugMode = !debugMode;
+        diagBtn.innerText = `HITBOX RIG: ${debugMode ? 'ON' : 'OFF'}`;
+        diagBtn.style.color = debugMode ? '#38bdf8' : '#64748b';
+        diagBtn.style.borderColor = debugMode ? '#38bdf8' : '#334155';
     });
 
-    function createFighter(x, color, isPlayer) {
+    function createRig(x, color, isPlayer) {
         return {
-            x, y: H * 0.55, h: 150, color, isPlayer,
-            hp: 100, isLeft: isPlayer,
-            actionState: 'idle', stateTimer: 0,
-            isBlockingHigh: false, isBlockingLow: false,
-            velX: 0
+            x, y: H * 0.54, color, isPlayer,
+            hp: 100, isFacingRight: isPlayer,
+            state: 'idle', 
+            stateTimer: 0,
+            currentAttack: null,
+            guardHigh: false, guardLow: false
         };
     }
 
-    function spawnParticle(x, y, color) {
-        for (let i = 0; i < 18; i++) {
-            particles.push({
-                x, y,
-                vx: (Math.random() - 0.5) * 9, vy: (Math.random() - 0.5) * 9 - 2,
-                alpha: 1.0, size: Math.random() * 3 + 1.5, color
-            });
-        }
+    function triggerAttack(f, type) {
+        if (!running || f.state !== 'idle') return;
+        f.currentAttack = type;
+        f.state = 'startup';
+        f.stateTimer = type === 'Punch' ? 8 : 12; 
     }
 
-    function spawnText(x, y, str, color) {
-        flyTexts.push({ x, y, str, color, alpha: 1.0, vy: -1.4 });
-    }
-
-    function fireAttack(attacker, type) {
-        if (!running || attacker.actionState !== 'idle') return;
-        attacker.actionState = type;
-        attacker.stateTimer = type === 'Punch' ? 14 : 20;
-
-        const range = type === 'Punch' ? CONFIG.PUNCH_RANGE : CONFIG.KICK_RANGE;
-        const target = fighters.find(f => f !== attacker);
-        const distance = Math.abs(attacker.x - target.x);
+    function executeHitMath(attacker) {
+        const type = attacker.currentAttack;
+        const range = type === 'Punch' ? CONFIG.PUNCH_REACH : CONFIG.KICK_REACH;
+        const defender = fighters.find(t => t !== attacker);
+        const distance = Math.abs(attacker.x - defender.x);
 
         if (distance <= range) {
-            let result = 'CLEAN';
-            let targetY = target.y + (type === 'Punch' ? -25 : 65);
+            let isBlocked = false;
+            if (type === 'Punch' && defender.guardHigh) isBlocked = true;
+            if (type === 'Kick' && defender.guardLow) isBlocked = true;
 
-            if (type === 'Punch' && target.isBlockingHigh) result = 'BLOCKED';
-            if (type === 'Kick' && target.isBlockingLow) result = 'BLOCKED';
+            const hitX = (attacker.x + defender.x) / 2;
+            const hitY = defender.y + (type === 'Punch' ? -25 : 45);
 
-            const hitX = (attacker.x + target.x) / 2;
-
-            if (result === 'BLOCKED') {
-                SoundFx.playBlock();
-                target.hp -= CONFIG.BASE_DAMAGE * CONFIG.CHIP_DAMAGE_MULT;
-                spawnParticle(hitX, targetY, '#94a3b8');
-                spawnText(hitX, targetY - 20, 'BLOCKED', '#f1f5f9');
+            if (isBlocked) {
+                AudioEngine.guard();
+                defender.hp = Math.max(0, defender.hp - CONFIG.CHIP_DAMAGE);
+                popups.push({ x: hitX, y: hitY - 15, txt: 'PARRIED (-2)', color: '#94a3b8', alpha: 1, vy: -1 });
             } else {
-                if (type === 'Punch') SoundFx.playPunch(); else SoundFx.playKick();
-                target.hp = Math.max(0, target.hp - CONFIG.BASE_DAMAGE);
-                target.x += attacker.isLeft ? CONFIG.KNOCKBACK : -CONFIG.KNOCKBACK;
-                shakeTimer = 7;
-                hitStop = 2; // Hit-stop frame freeze
-                spawnParticle(hitX, targetY, attacker.color);
-                spawnText(hitX, targetY - 24, `${type === 'Punch' ? 'PUNCH' : 'SWEEP'} HIT!`, attacker.color);
-                spawnText(hitX, targetY, '+50 PTS', '#ffffff');
+                AudioEngine.strike(type === 'Kick');
+                defender.hp = Math.max(0, defender.hp - CONFIG.BASE_DAMAGE);
+                defender.x += attacker.isFacingRight ? CONFIG.KNOCKBACK : -CONFIG.KNOCKBACK;
+                hitFreeze = 3;
+                shakeTimer = 6;
+
+                for (let i = 0; i < 14; i++) {
+                    particles.push({
+                        x: hitX, y: hitY,
+                        vx: (Math.random() - 0.5) * 8, vy: (Math.random() - 0.5) * 8 - 1,
+                        alpha: 1, color: attacker.color
+                    });
+                }
+                popups.push({ x: hitX, y: hitY - 20, txt: `${type.toUpperCase()} LANDED (-${CONFIG.BASE_DAMAGE})`, color: attacker.color, alpha: 1, vy: -1.2 });
             }
 
-            playerHpBar.style.width = fighters[0].hp + '%';
-            playerHpText.innerText = Math.round(fighters[0].hp);
-            enemyHpBar.style.width = fighters[1].hp + '%';
-            enemyHpText.innerText = Math.round(fighters[1].hp);
+            p1HpBar.style.width = fighters[0].hp + '%';
+            p1HpNum.innerText = Math.round(fighters[0].hp) + '%';
+            aiHpBar.style.width = fighters[1].hp + '%';
+            aiHpNum.innerText = Math.round(fighters[1].hp) + '%';
 
-            if (fighters[0].hp <= 0 || fighters[1].hp <= 0) endGame();
+            if (fighters[0].hp <= 0 || fighters[1].hp <= 0) haltMatch();
         }
     }
 
-    // Procedural Humanoid Figure Drawing Routine
-    function drawFighterFigure(f) {
-        const dir = f.isLeft ? 1 : -1;
+    function renderSkeletonFigure(f) {
+        const dir = f.isFacingRight ? 1 : -1;
         const baseY = f.y;
-        const headY = baseY - 45;
-        const chestY = baseY - 10;
-        const pelvisY = baseY + 25;
+        const headY = baseY - 50;
+        const chestY = baseY - 12;
+        const hipY = baseY + 25;
         const footY = baseY + 85;
 
         ctx.save();
         ctx.strokeStyle = f.color;
         ctx.fillStyle = f.color;
-        ctx.lineWidth = 4;
+        ctx.lineWidth = 3.5;
         ctx.lineCap = 'round';
         ctx.lineJoin = 'round';
-        ctx.shadowColor = f.color;
-        ctx.shadowBlur = 12;
 
-        // 1. Helmet / Head
         ctx.beginPath();
-        ctx.arc(f.x, headY, 13, 0, Math.PI * 2);
-        ctx.stroke();
-        ctx.fillStyle = '#030712';
-        ctx.fill();
-
-        // 2. Torso & Spine
-        ctx.beginPath();
-        ctx.moveTo(f.x, headY + 13);
-        ctx.lineTo(f.x, pelvisY);
+        ctx.arc(f.x, headY, 12, 0, Math.PI * 2);
         ctx.stroke();
 
-        // 3. Legs
-        if (f.actionState === 'Kick') {
-            // Front Leg Extended Side Kick
+        ctx.beginPath();
+        ctx.moveTo(f.x, headY + 12);
+        ctx.lineTo(f.x, hipY);
+        ctx.stroke();
+
+        if (f.state === 'active' && f.currentAttack === 'Kick') {
             ctx.beginPath();
-            ctx.moveTo(f.x, pelvisY);
-            ctx.lineTo(f.x + dir * 35, pelvisY + 15);
-            ctx.lineTo(f.x + dir * 75, pelvisY + 30);
+            ctx.moveTo(f.x, hipY);
+            ctx.lineTo(f.x + dir * 30, hipY + 10);
+            ctx.lineTo(f.x + dir * 75, hipY + 28);
             ctx.stroke();
-            // Back Support Leg
+
             ctx.beginPath();
-            ctx.moveTo(f.x, pelvisY);
-            ctx.lineTo(f.x - dir * 15, pelvisY + 35);
+            ctx.moveTo(f.x, hipY);
+            ctx.lineTo(f.x - dir * 18, hipY + 30);
             ctx.lineTo(f.x - dir * 20, footY);
             ctx.stroke();
         } else {
-            // Natural Fighting Stance Legs
             ctx.beginPath();
-            ctx.moveTo(f.x, pelvisY);
-            ctx.lineTo(f.x + dir * 12, pelvisY + 30);
-            ctx.lineTo(f.x + dir * 18, footY);
+            ctx.moveTo(f.x, hipY);
+            ctx.lineTo(f.x + dir * 14, hipY + 30);
+            ctx.lineTo(f.x + dir * 20, footY);
             ctx.stroke();
 
             ctx.beginPath();
-            ctx.moveTo(f.x, pelvisY);
-            ctx.lineTo(f.x - dir * 14, pelvisY + 30);
-            ctx.lineTo(f.x - dir * 16, footY);
+            ctx.moveTo(f.x, hipY);
+            ctx.lineTo(f.x - dir * 15, hipY + 30);
+            ctx.lineTo(f.x - dir * 18, footY);
             ctx.stroke();
         }
 
-        // 4. Arms & Guard Stances
-        if (f.actionState === 'Punch') {
-            // Full Extended Jab Arm
+        if (f.state === 'active' && f.currentAttack === 'Punch') {
             ctx.beginPath();
             ctx.moveTo(f.x, chestY);
-            ctx.lineTo(f.x + dir * 30, chestY - 12);
-            ctx.lineTo(f.x + dir * 65, chestY - 12);
-            ctx.stroke();
-            // Guard Hand at Chin
-            ctx.beginPath();
-            ctx.moveTo(f.x, chestY);
-            ctx.lineTo(f.x - dir * 8, chestY);
-            ctx.lineTo(f.x + dir * 10, headY + 5);
-            ctx.stroke();
-        } else if (f.isBlockingHigh) {
-            // Crossed Double Forearm Guard (High Shell)
-            ctx.beginPath();
-            ctx.moveTo(f.x, chestY);
-            ctx.lineTo(f.x + dir * 15, headY - 5);
-            ctx.lineTo(f.x + dir * 22, headY - 12);
+            ctx.lineTo(f.x + dir * 35, chestY - 10);
+            ctx.lineTo(f.x + dir * 68, chestY - 10);
             ctx.stroke();
 
             ctx.beginPath();
             ctx.moveTo(f.x, chestY);
-            ctx.lineTo(f.x + dir * 10, headY);
-            ctx.lineTo(f.x + dir * 18, headY - 6);
+            ctx.lineTo(f.x - dir * 10, chestY);
+            ctx.lineTo(f.x + dir * 8, headY + 4);
             ctx.stroke();
-        } else if (f.isBlockingLow) {
-            // Dropped Arm Shin Check (Low Block)
+        } else if (f.guardHigh) {
             ctx.beginPath();
             ctx.moveTo(f.x, chestY);
-            ctx.lineTo(f.x + dir * 18, pelvisY + 15);
-            ctx.lineTo(f.x + dir * 25, pelvisY + 45);
+            ctx.lineTo(f.x + dir * 15, headY - 4);
+            ctx.lineTo(f.x + dir * 20, headY - 12);
+            ctx.stroke();
+        } else if (f.guardLow) {
+            ctx.beginPath();
+            ctx.moveTo(f.x, chestY);
+            ctx.lineTo(f.x + dir * 18, hipY + 10);
+            ctx.lineTo(f.x + dir * 22, hipY + 40);
             ctx.stroke();
         } else {
-            // Default Neutral MMA Boxing Guard
             ctx.beginPath();
             ctx.moveTo(f.x, chestY);
-            ctx.lineTo(f.x + dir * 18, chestY - 5);
-            ctx.lineTo(f.x + dir * 22, headY + 5);
-            ctx.stroke();
-
-            ctx.beginPath();
-            ctx.moveTo(f.x, chestY);
-            ctx.lineTo(f.x + dir * 10, chestY);
-            ctx.lineTo(f.x + dir * 14, headY + 8);
+            ctx.lineTo(f.x + dir * 16, chestY - 6);
+            ctx.lineTo(f.x + dir * 20, headY + 4);
             ctx.stroke();
         }
 
         ctx.restore();
 
-        // 5. Developer Hitbox Telemetry Boxes (When Debug is On)
-        if (showDebug) {
+        if (debugMode) {
             ctx.save();
-            ctx.font = '9px Courier New';
             ctx.lineWidth = 1;
+            ctx.font = '9px monospace';
 
-            // Head (High)
             ctx.strokeStyle = '#ef4444';
-            ctx.strokeRect(f.x - 22, headY - 18, 44, 38);
+            ctx.strokeRect(f.x - 20, headY - 16, 40, 34);
             ctx.fillStyle = '#ef4444';
-            ctx.fillText('Head (High)', f.x + (f.isLeft ? 26 : -90), headY);
+            ctx.fillText('HIGH_ZONE', f.x + (f.isFacingRight ? 24 : -80), headY);
 
-            // Torso (Mid)
-            ctx.strokeStyle = '#f97316';
-            ctx.strokeRect(f.x - 24, chestY - 10, 48, 45);
-            ctx.fillStyle = '#f97316';
-            ctx.fillText('Torso (Mid)', f.x + (f.isLeft ? 26 : -90), chestY + 18);
+            ctx.strokeStyle = '#f59e0b';
+            ctx.strokeRect(f.x - 22, chestY - 10, 44, 42);
+            ctx.fillStyle = '#f59e0b';
+            ctx.fillText('MID_ZONE', f.x + (f.isFacingRight ? 24 : -80), chestY + 16);
 
-            // Legs (Low)
-            ctx.strokeStyle = '#eab308';
-            ctx.strokeRect(f.x - 26, pelvisY + 5, 52, 60);
-            ctx.fillStyle = '#eab308';
-            ctx.fillText('Leg (Low)', f.x + (f.isLeft ? 26 : -90), pelvisY + 38);
+            ctx.strokeStyle = '#10b981';
+            ctx.strokeRect(f.x - 24, hipY + 6, 48, 55);
+            ctx.fillStyle = '#10b981';
+            ctx.fillText('LOW_ZONE', f.x + (f.isFacingRight ? 24 : -80), hipY + 36);
 
             ctx.restore();
         }
@@ -425,141 +382,231 @@
 
     function update() {
         if (!running) return;
-        if (hitStop > 0) { hitStop--; return; }
-
-        const leftLimit = CONFIG.OCTAGON_PADDING;
-        const rightLimit = W - CONFIG.OCTAGON_PADDING;
+        if (hitFreeze > 0) { hitFreeze--; return; }
 
         fighters.forEach(f => {
-            f.y = H * 0.52; // Centered comfortably above mobile touch controls
+            f.y = H * 0.48; // Position adjustments to preserve interface visibility
 
             if (f.stateTimer > 0) {
                 f.stateTimer--;
-                if (f.stateTimer <= 0) f.actionState = 'idle';
+                if (f.stateTimer === 0) {
+                    if (f.state === 'startup') {
+                        f.state = 'active';
+                        f.stateTimer = f.currentAttack === 'Punch' ? 6 : 8;
+                        executeHitMath(f);
+                    } else if (f.state === 'active') {
+                        f.state = 'recovery';
+                        f.stateTimer = f.currentAttack === 'Punch' ? 12 : 16; 
+                    } else if (f.state === 'recovery') {
+                        f.state = 'idle';
+                        f.currentAttack = null;
+                    }
+                }
             }
 
             if (f.isPlayer) {
-                const mvL = keys.Left || mobileControls.Left;
-                const mvR = keys.Right || mobileControls.Right;
-                f.isBlockingHigh = keys.GuardHigh || mobileControls.GuardHigh;
-                f.isBlockingLow = keys.GuardLow || mobileControls.GuardLow;
+                f.guardHigh = input.guardHi;
+                f.guardLow = input.guardLo;
 
-                f.velX = 0;
-                if (mvL) f.velX = -CONFIG.PLAYER_SPEED;
-                if (mvR) f.velX = CONFIG.PLAYER_SPEED;
-                if (f.actionState !== 'idle') f.velX = 0;
-
-                f.x = Math.max(leftLimit, Math.min(rightLimit, f.x + f.velX));
+                if (f.state === 'idle') {
+                    if (input.left) f.x -= CONFIG.P1_SPEED;
+                    if (input.right) f.x += CONFIG.P1_SPEED;
+                }
             } else {
                 const target = fighters[0];
                 const dist = f.x - target.x;
 
-                f.isBlockingHigh = false;
-                f.isBlockingLow = false;
+                f.guardHigh = false;
+                f.guardLow = false;
 
-                if (f.actionState === 'idle') {
-                    if (Math.abs(dist) > 90) {
+                if (f.state === 'idle') {
+                    if (Math.abs(dist) > 95) {
                         f.x += dist > 0 ? -CONFIG.AI_SPEED : CONFIG.AI_SPEED;
                     } else {
-                        const r = Math.random();
-                        if (r < 0.016) fireAttack(f, 'Punch');
-                        else if (r < 0.032) fireAttack(f, 'Kick');
-                        else if (r < 0.06) f.isBlockingHigh = true;
-                        else if (r < 0.09) f.isBlockingLow = true;
+                        const dice = Math.random();
+                        if (dice < 0.012) triggerAttack(f, 'Punch');
+                        else if (dice < 0.022) triggerAttack(f, 'Kick');
+                        else if (dice < 0.05) f.guardHigh = true;
+                        else if (dice < 0.08) f.guardLow = true;
                     }
                 }
-                f.x = Math.max(leftLimit, Math.min(rightLimit, f.x));
             }
+
+            f.x = Math.max(50, Math.min(W - 50, f.x));
         });
-                fighters[0].isLeft = fighters[0].x < fighters[1].x;
-        fighters[1].isLeft = fighters[1].x < fighters[0].x;
+
+        fighters[0].isFacingRight = fighters[0].x < fighters[1].x;
+        fighters[1].isFacingRight = fighters[1].x < fighters[0].x;
 
         for (let i = particles.length - 1; i >= 0; i--) {
             const p = particles[i];
-            p.x += p.vx; p.y += p.vy; p.alpha -= 0.035;
+            p.x += p.vx; p.y += p.vy; p.alpha -= 0.04;
             if (p.alpha <= 0) particles.splice(i, 1);
         }
-        for (let i = flyTexts.length - 1; i >= 0; i--) {
-            const t = flyTexts[i];
-            t.y += t.vy; t.alpha -= 0.015;
-            if (t.alpha <= 0) flyTexts.splice(i, 1);
+        for (let i = popups.length - 1; i >= 0; i--) {
+            const t = popups[i];
+            t.y += t.vy; t.alpha -= 0.02;
+            if (t.alpha <= 0) popups.splice(i, 1);
         }
     }
 
-    function draw() {
-        ctx.save();
-        if (shakeTimer > 0) {
-            ctx.translate((Math.random() - 0.5) * 8, (Math.random() - 0.5) * 8);
-            shakeTimer--;
-        }
+    // Octagon Background Rendering Method
+    function drawMMAEnclosure() {
+        const backWallY = H * 0.28;
+        const cageFloorY = H * 0.70;
 
-        ctx.fillStyle = '#030712';
+        // Backdrop gradient to emulate low stadium lighting
+        const gr = ctx.createLinearGradient(0, 0, 0, H);
+        gr.addColorStop(0, '#020509');
+        gr.addColorStop(0.35, '#070f1a');
+        gr.addColorStop(0.70, '#0c1626');
+        gr.addColorStop(1, '#050a12');
+        ctx.fillStyle = gr;
         ctx.fillRect(0, 0, W, H);
 
-        const horizonY = H * 0.42;
-        const groundY = H * 0.75;
+        // Stage lighting / volumetric haze simulation
+        ctx.fillStyle = 'rgba(56, 189, 248, 0.012)';
+        ctx.beginPath();
+        ctx.moveTo(W * 0.35, 0); ctx.lineTo(W * 0.65, 0);
+        ctx.lineTo(W * 0.95, cageFloorY); ctx.lineTo(W * 0.05, cageFloorY);
+        ctx.closePath();
+        ctx.fill();
 
-        ctx.strokeStyle = '#1e293b';
+        ctx.strokeStyle = 'rgba(15, 23, 42, 0.5)';
         ctx.lineWidth = 1;
-        for (let y = horizonY; y <= groundY; y += 18) {
-            ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke();
-        }
-        for (let x = -W; x <= W * 2; x += 45) {
+
+        // Ground perspective grids
+        for (let y = backWallY; y <= cageFloorY; y += 14) {
             ctx.beginPath();
-            ctx.moveTo(x, groundY);
-            ctx.lineTo(W / 2 + (x - W / 2) * 0.35, horizonY);
+            ctx.moveTo(0, y);
+            ctx.lineTo(W, y);
+            ctx.stroke();
+        }
+        for (let x = -W; x <= W * 2; x += 38) {
+            ctx.beginPath();
+            ctx.moveTo(x, cageFloorY);
+            ctx.lineTo(W / 2 + (x - W / 2) * 0.35, backWallY);
             ctx.stroke();
         }
 
-        ctx.strokeStyle = 'rgba(0, 240, 255, 0.12)';
-        ctx.lineWidth = 2;
-        ctx.strokeRect(CONFIG.OCTAGON_PADDING, horizonY - 110, W - CONFIG.OCTAGON_PADDING * 2, groundY - (horizonY - 110));
+        // Draw hexagonal/octagon perimeter wall structure
+        ctx.strokeStyle = '#05111f';
+        ctx.lineWidth = 6;
+        ctx.beginPath();
+        // Base perimeter anchor lines
+        ctx.moveTo(0, backWallY);
+        ctx.lineTo(W * 0.25, backWallY + 30);
+        ctx.li        // Support columns
+        ctx.lineWidth = 5;
+        const posts = [W * 0.25, W * 0.75];
+        posts.forEach(x => {
+            const floorOffset = backWallY + 30;
+            const ceilingOffset = highWallY + 25;
+            ctx.beginPath();
+            ctx.moveTo(x, floorOffset);
+            ctx.lineTo(x, ceilingOffset);
+            ctx.stroke();
+            
+            // Post cap rendering
+            ctx.fillStyle = '#0a1d33';
+            ctx.fillRect(x - 5, ceilingOffset - 3, 10, 6);
+        });
 
-        fighters.forEach(f => drawFighterFigure(f));
+        // Background chain link wire mesh drawing using crosshatching
+        ctx.strokeStyle = 'rgba(56, 189, 248, 0.05)';
+        ctx.lineWidth = 1.2;
+        ctx.save();
+        ctx.beginPath();
+        ctx.rect(0, highWallY, W, backWallY - highWallY + 35);
+        ctx.clip();
+        for (let i = -W; i < W * 2; i += 8) {
+            ctx.beginPath();
+            ctx.moveTo(i, highWallY);
+            ctx.lineTo(i + 400, backWallY + 60);
+            ctx.stroke();
+            
+            ctx.beginPath();
+            ctx.moveTo(i + 400, highWallY);
+            ctx.lineTo(i, backWallY + 60);
+            ctx.stroke();
+        }
+        ctx.restore();
+
+        // Perspective visual guard rails
+        ctx.strokeStyle = 'rgba(56, 189, 248, 0.2)';
+        ctx.lineWidth = 2.5;
+        ctx.beginPath();
+        ctx.moveTo(0, backWallY + 30);
+        ctx.lineTo(W * 0.25, backWallY + 50);
+        ctx.lineTo(W * 0.75, backWallY + 50);
+        ctx.lineTo(W, backWallY + 30);
+        ctx.stroke();
+
+        ctx.strokeStyle = 'rgba(225, 29, 72, 0.12)';
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        ctx.moveTo(W * 0.25, backWallY + 50);
+        ctx.lineTo(W * 0.75, backWallY + 50);
+        ctx.stroke();
+    }
+
+    function render() {
+        ctx.save();
+        if (shakeTimer > 0) {
+            ctx.translate((Math.random() - 0.5) * 6, (Math.random() - 0.5) * 6);
+            shakeTimer--;
+        }
+
+        // Run updated backdrop cage design
+        drawMMAEnclosure();
+
+        fighters.forEach(f => renderSkeletonFigure(f));
 
         for (const p of particles) {
             ctx.fillStyle = p.color;
             ctx.globalAlpha = p.alpha;
-            ctx.beginPath(); ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2); ctx.fill();
+            ctx.beginPath(); ctx.arc(p.x, p.y, 2.5, 0, Math.PI * 2); ctx.fill();
         }
         ctx.globalAlpha = 1.0;
 
-        for (const t of flyTexts) {
+        for (const t of popups) {
             ctx.fillStyle = t.color;
-            ctx.font = 'bold 15px Courier New';
-            ctx.fillText(t.str, t.x - 30, t.y);
+            ctx.globalAlpha = t.alpha;
+            ctx.font = 'bold 11px monospace';
+            ctx.fillText(t.txt, t.x - 40, t.y);
         }
+        ctx.globalAlpha = 1.0;
 
         ctx.restore();
 
         update();
-        requestAnimationFrame(draw);
+        requestAnimationFrame(render);
     }
 
-    function startGame() {
-        SoundFx.init();
-        overlay.style.display = 'none';
+    function launch() {
+        AudioEngine.init();
+        modal.style.display = 'none';
         fighters = [
-            createFighter(W * 0.32, '#00f0ff', true),
-            createFighter(W * 0.68, '#ff0055', false)
+            createRig(W * 0.32, '#38bdf8', true),
+            createRig(W * 0.68, '#fb7185', false)
         ];
-        playerHpBar.style.width = '100%';
-        enemyHpBar.style.width = '100%';
-        playerHpText.innerText = '100';
-        enemyHpText.innerText = '100';
+        p1HpBar.style.width = '100%';
+        aiHpBar.style.width = '100%';
+        p1HpNum.innerText = '100%';
+        aiHpNum.innerText = '100%';
         running = true;
     }
 
-    function endGame() {
+    function haltMatch() {
         running = false;
-        overlay.style.display = 'flex';
-        overlay.querySelector('h1').innerText = fighters[0].hp <= 0 ? 'KNOCKOUT' : 'VICTORY';
-        overlay.querySelector('p').innerText = fighters[0].hp <= 0 ? 'SYSTEM FAILED. REINITIALIZE?' : 'CORE INTACT. CHALLENGER DEFEATED.';
-        startBtn.innerText = 'REINITIALIZE COMBAT';
+        modal.style.display = 'flex';
+        modal.querySelector('h2').innerText = fighters[0].hp <= 0 ? 'SYSTEM TERMINATED' : 'HARNESS COMPLETE';
+        modal.querySelector('p').innerText = 'Combat routine loop finalized. Ready for reset.';
+        initBtn.innerText = 'RESTART TEST HARNESS';
     }
 
-    startBtn.addEventListener('click', startGame);
-    requestAnimationFrame(draw);
+    initBtn.addEventListener('click', launch);
+    requestAnimationFrame(render);
     </script>
 </body>
 </html>
