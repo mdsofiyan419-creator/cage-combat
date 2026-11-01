@@ -190,8 +190,7 @@
     }
     window.addEventListener('resize', resize);
     resize();
-
-    const AudioEngine = {
+            const AudioEngine = {
         ctx: null,
         init() {
             if (!this.ctx) {
@@ -285,8 +284,7 @@
     document.getElementById('btnK').addEventListener('pointerdown', (e) => {
         e.preventDefault(); AudioEngine.init(); triggerAttack(fighters[0], 'kick');
     });
-
-    function createFighterRig(id, cfg, isPlayer) {
+            function createFighterRig(id, cfg, isPlayer) {
         return {
             id, cfg, isPlayer,
             x: isPlayer ? W * 0.30 : W * 0.70,
@@ -430,8 +428,7 @@
         document.getElementById('post-match-modal').style.display = 'none';
         MatchManager.startMatch();
     });
-
-    function triggerAttack(f, type) {
+            function triggerAttack(f, type) {
         if (MatchManager.state !== 'FIGHT' || f.state !== 'idle') return;
         const cfg = f.cfg[type];
         f.currentAttack = type;
@@ -547,9 +544,8 @@
             ctx.fillRect(-12, 0, 10, 48); ctx.fillRect(2, 0, 10, 48);
         }
         ctx.restore();
-    }
-
-    function renderHitboxDiagnostics(f) {
+            }
+            function renderHitboxDiagnostics(f) {
         if (!debugHitboxMode) return;
         const headY = f.y - 50, chestY = f.y - 12, hipY = f.y + 25;
         const offset = f.isFacingRight ? 35 : -110;
@@ -703,6 +699,15 @@
             ctx.beginPath(); ctx.moveTo(i + 400, highWallY); ctx.lineTo(i, backWallY + 60); ctx.stroke();
         }
         ctx.restore();
+
+        ctx.strokeStyle = 'rgba(56, 189, 248, 0.2)';
+        ctx.lineWidth = 2.5;
+        ctx.beginPath();
+        ctx.moveTo(0, backWallY + 30);
+        ctx.lineTo(W * 0.25, backWallY + 50);
+        ctx.lineTo(W * 0.75, backWallY + 50);
+        ctx.lineTo(W, backWallY + 30);
+        ctx.stroke();
     }
 
     function render() {
